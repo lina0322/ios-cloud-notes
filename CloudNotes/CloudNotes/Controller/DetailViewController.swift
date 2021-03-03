@@ -7,9 +7,13 @@
 
 import UIKit
 import CoreData
+import SwiftyDropbox
 
 final class DetailViewController: UIViewController {
+    
     // MARK: - Property
+    let file = "CloudNotes.sqlite-wal"
+    let client = DropboxClientsManager.authorizedClient
     
     var note: NSManagedObject? = nil
     private var noteTitle: String {
@@ -54,6 +58,86 @@ final class DetailViewController: UIViewController {
         configureKeyboardDoneButton()
     }
     
+    // MARK: - TEST
+    func authorizeDropboxUpload() {
+
+        // New: OAuth 2 code flow with PKCE that grants a short-lived token with scopes.
+        let scopeRequest = ScopeRequest(scopeType: .user, scopes: ["files.content.write"], includeGrantedScopes: false)
+        DropboxClientsManager.authorizeFromControllerV2(
+            UIApplication.shared,
+            controller: self,
+            loadingStatusDelegate: nil,
+            openURL: { (url: URL) -> Void in UIApplication.shared.open(url, options: [:], completionHandler: nil) },
+            scopeRequest: scopeRequest
+        )
+    }
+    
+    func authorizeDropboxDownload() {
+
+        // New: OAuth 2 code flow with PKCE that grants a short-lived token with scopes.
+        let scopeRequest = ScopeRequest(scopeType: .user, scopes: ["files.content.read"], includeGrantedScopes: false)
+        DropboxClientsManager.authorizeFromControllerV2(
+            UIApplication.shared,
+            controller: self,
+            loadingStatusDelegate: nil,
+            openURL: { (url: URL) -> Void in UIApplication.shared.open(url, options: [:], completionHandler: nil) },
+            scopeRequest: scopeRequest
+        )
+    }
+    
+        func downloadBT() {
+            authorizeDropboxDownload()
+               // I get the FileManager route
+               let fileManager = FileManager.default
+               let directoryURL = fileManager.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
+               let destURL = directoryURL.appendingPathComponent("/\(file)")
+               let destination: (URL, HTTPURLResponse) -> URL = { temporaryURL, response in
+                   return destURL
+               }
+    
+               // I check API DropBox authorization
+               let client = DropboxClientsManager.authorizedClient
+    
+               // I get the Download
+               client?.files.download(path: "/\(file)", overwrite: true, destination: destination)
+                   .response { response, error in
+                       if let response = response {
+                           print(response)
+                       } else if let error = error {
+                           print(error)
+                       }
+                   }
+                   .progress { progressData in
+                       print(progressData)
+               }
+           }
+    
+    func uploadBT() {
+        authorizeDropboxUpload()
+            // I call back the file through FileManager route
+        let paths = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)
+            let documentsDirectory = paths[0].appendingPathComponent(file)
+
+            // I get a constant with the FileManager route
+            let exportFilePath = documentsDirectory
+
+            // I check API DropBox authorization
+            let client = DropboxClientsManager.authorizedClient
+
+            // I get the Upload
+            client?.files.upload(path: "/\(file)", mode: .overwrite, autorename: false, clientModified: nil, mute: true, input: exportFilePath)
+                .response { response, error in
+                    if let response = response {
+                        print(response)
+                    } else if let error = error {
+                        print(error)
+                    }
+                }
+                .progress { progressData in
+                    print(progressData)
+            }
+        }
+
     // MARK: - UI
     
     private func configureTextView() {
@@ -169,7 +253,13 @@ final class DetailViewController: UIViewController {
         let deleteButton = UIAlertAction(title: NoteString.deleteButton, style: .destructive) { _
             in self.showDeleteAlert()}
         let cancleButton = UIAlertAction(title: NoteString.cancelButton, style: .cancel, handler: nil)
+        let dropBoxUploadButton = UIAlertAction(title: "DropBox upload", style: .default) { _
+            in self.uploadBT()}
+        let dropBoxDownloadButton = UIAlertAction(title: "DropBox download", style: .default) { _
+            in self.downloadBT()}
         
+        actionSheet.addAction(dropBoxDownloadButton)
+        actionSheet.addAction(dropBoxUploadButton)
         actionSheet.addAction(shareButton)
         actionSheet.addAction(deleteButton)
         actionSheet.addAction(cancleButton)
